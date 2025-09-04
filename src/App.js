@@ -703,6 +703,7 @@ const App = () => {
 
         const customersWithDues = useMemo(() => {
             return customers.filter(c => customerBalances[c.id] > 0);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         }, [customers, customerBalances]);
 
         const handlePaymentChange = (customerId, amount) => {
