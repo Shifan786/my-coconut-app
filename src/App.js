@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, setLogLevel, writeBatch } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -19,6 +19,7 @@ const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" he
 const CopyIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
 const CheckCircleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
 const ClipboardListIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>;
+const CreditCardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>;
 
 
 // --- Firebase Initialization ---
@@ -42,6 +43,7 @@ const App = () => {
     const [sales, setSales] = useState([]);
     const [expenses, setExpenses] = useState([]);
     const [customers, setCustomers] = useState([]);
+    const [payments, setPayments] = useState([]);
     
     const [showPurchaseModal, setShowPurchaseModal] = useState(false);
     const [showSaleModal, setShowSaleModal] = useState(false);
@@ -60,7 +62,6 @@ const App = () => {
 
     const [summaryDate, setSummaryDate] = useState(new Date().toISOString().split('T')[0]);
 
-    // Gemini API states
     const [geminiLoading, setGeminiLoading] = useState(false);
     const [businessInsights, setBusinessInsights] = useState("");
     const [showReminderModal, setShowReminderModal] = useState(false);
@@ -100,14 +101,26 @@ const App = () => {
         const unsubSales = dataFetcher('sales', (items) => setSales(items.sort((a,b) => new Date(b.date) - new Date(a.date))));
         const unsubExpenses = dataFetcher('expenses', (items) => setExpenses(items.sort((a,b) => new Date(b.date) - new Date(a.date))));
         const unsubCustomers = dataFetcher('customers', (items) => setCustomers(items.sort((a,b) => a.name.localeCompare(b.name))));
+        const unsubPayments = dataFetcher('payments', setPayments);
         
         return () => {
             if (unsubPurchases) unsubPurchases();
             if (unsubSales) unsubSales();
             if (unsubExpenses) unsubExpenses();
             if (unsubCustomers) unsubCustomers();
+            if (unsubPayments) unsubPayments();
         };
     }, [dataFetcher]);
+
+    const customerBalances = useMemo(() => {
+        const balances = {};
+        customers.forEach(c => {
+            const totalBilled = sales.filter(s => s.customerId === c.id).reduce((sum, s) => sum + (s.totalPrice || 0), 0);
+            const totalPaid = payments.filter(p => p.customerId === c.id).reduce((sum, p) => sum + (p.amount || 0), 0);
+            balances[c.id] = totalBilled - totalPaid;
+        });
+        return balances;
+    }, [customers, sales, payments]);
 
     const callGeminiAPI = async (prompt, setLoading, setData) => {
         setLoading(true);
@@ -155,14 +168,12 @@ const App = () => {
             setShowReminderModal(true);
         });
     };
-
-    const totalPurchases = purchases.reduce((sum, p) => sum + (p.quantity || 0), 0);
-    const totalSales = sales.reduce((sum, s) => sum + (s.quantity || 0), 0);
-    const inventory = totalPurchases - totalSales;
+    
     const totalPurchaseCost = purchases.reduce((sum, p) => sum + (p.totalCost || 0), 0);
     const totalSaleRevenue = sales.reduce((sum, s) => sum + (s.totalPrice || 0), 0);
     const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     const netProfit = totalSaleRevenue - totalPurchaseCost - totalExpenses;
+    const inventory = purchases.reduce((sum, p) => sum + (p.quantity || 0), 0) - sales.reduce((sum, s) => sum + (s.quantity || 0), 0);
     const dailyPurchases = purchases.filter(p => p.date === summaryDate).reduce((sum, p) => sum + (p.totalCost || 0), 0);
     const dailySales = sales.filter(s => s.date === summaryDate).reduce((sum, s) => sum + (s.totalPrice || 0), 0);
     const dailyExpenses = expenses.filter(e => e.date === summaryDate).reduce((sum, e) => sum + (e.amount || 0), 0);
@@ -180,12 +191,10 @@ const App = () => {
             console.error(`Error saving to ${collectionName}:`, error);
         }
     };
-    
     const handleDelete = (collectionName, id) => {
         setItemToDelete({ collectionName, id });
         setShowConfirmModal(true);
     };
-    
     const executeDelete = async () => {
         if (!itemToDelete || !user) return;
         const { collectionName, id } = itemToDelete;
@@ -241,7 +250,6 @@ const App = () => {
              </div>
         </div>
     );
-
     const StatCard = ({ title, value, icon, color, small }) => {
         const colors = { blue: 'from-blue-400 to-blue-500', orange: 'from-orange-400 to-orange-500', green: 'from-green-400 to-green-500', teal: 'from-teal-400 to-teal-500', red: 'from-red-400 to-red-500' };
         return (
@@ -254,7 +262,6 @@ const App = () => {
             </div>
         );
     };
-
     const PurchaseList = () => (
         <div className="p-4 md:p-6">
             <div className="flex justify-between items-center mb-6">
@@ -294,7 +301,6 @@ const App = () => {
             </div>
         </div>
     );
-
     const SaleList = () => (
          <div className="p-4 md:p-6">
             <div className="flex justify-between items-center mb-6">
@@ -340,7 +346,6 @@ const App = () => {
             </div>
         </div>
     );
-
     const ExpenseList = () => (
         <div className="p-4 md:p-6">
             <div className="flex justify-between items-center mb-6">
@@ -376,52 +381,6 @@ const App = () => {
             </div>
         </div>
     );
-    
-    const CustomerList = () => (
-        <div className="p-4 md:p-6">
-            <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800">Customers</h1>
-                <button onClick={() => { setEditingCustomer(null); setShowCustomerModal(true); }} className="bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-600 transition-all duration-200 flex items-center gap-2">
-                    <PlusCircleIcon /> Add Customer
-                </button>
-            </div>
-            <div className="bg-white rounded-lg shadow overflow-x-auto">
-                <table className="w-full text-sm text-left text-gray-500">
-                    <thead className="text-xs text-gray-700 uppercase bg-gray-100">
-                        <tr>
-                            <th scope="col" className="px-6 py-3">Customer Name</th>
-                            <th scope="col" className="px-6 py-3">Shop Name</th>
-                            <th scope="col" className="px-6 py-3">Total Owed</th>
-                            <th scope="col" className="px-6 py-3">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {customers.map(c => {
-                            const customerSales = sales.filter(s => s.customerId === c.id);
-                            const totalBilled = customerSales.reduce((sum, s) => sum + (s.totalPrice || 0), 0);
-                            const totalPaid = customerSales.reduce((sum, s) => sum + (s.amountPaid || 0), 0);
-                            const balance = totalBilled - totalPaid;
-                            return (
-                                <tr key={c.id} className="bg-white border-b hover:bg-gray-50">
-                                    <td className="px-6 py-4 font-medium text-gray-900">{c.name}</td>
-                                    <td className="px-6 py-4">{c.shopName}</td>
-                                    <td className={`px-6 py-4 font-bold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{balance.toLocaleString('en-IN')}</td>
-                                    <td className="px-6 py-4 flex items-center gap-3">
-                                        <button onClick={() => { setEditingCustomer(c); setShowCustomerModal(true); }} className="text-blue-600 hover:text-blue-800"><EditIcon /></button>
-                                        <button onClick={() => handleDelete('customers', c.id)} className="text-red-600 hover:text-red-800"><TrashIcon /></button>
-                                        {balance > 0 && (
-                                            <button onClick={() => handleGenerateReminder(c, balance)} disabled={geminiLoading} className="text-indigo-600 hover:text-indigo-800 disabled:text-indigo-300"><SparklesIcon /></button>
-                                        )}
-                                    </td>
-                                </tr>
-                            )
-                        })}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    );
-
     const Modal = ({ show, onClose, title, children }) => {
         if (!show) return null;
         return (
@@ -436,7 +395,6 @@ const App = () => {
             </div>
         );
     };
-
     const PurchaseForm = ({ item, onClose }) => {
         const [supplier, setSupplier] = useState(item?.supplier || '');
         const [quantity, setQuantity] = useState(item?.quantity || '');
@@ -462,7 +420,6 @@ const App = () => {
             </form>
         );
     };
-
     const SaleForm = ({ item, onClose }) => {
         const [customerId, setCustomerId] = useState(item?.customerId || '');
         const [quantity, setQuantity] = useState(item?.quantity || '');
@@ -494,7 +451,6 @@ const App = () => {
             </form>
         );
     };
-
     const ExpenseForm = ({ item, onClose }) => {
         const [description, setDescription] = useState(item?.description || '');
         const [amount, setAmount] = useState(item?.amount || '');
@@ -516,7 +472,6 @@ const App = () => {
             </form>
         );
     };
-
      const CustomerForm = ({ item, onClose }) => {
         const [name, setName] = useState(item?.name || '');
         const [shopName, setShopName] = useState(item?.shopName || '');
@@ -536,15 +491,12 @@ const App = () => {
             </form>
         );
     };
-
     const InputField = ({ label, ...props }) => (
         <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
             <input {...props} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
     );
-
-    // --- NEW: Daily Sales Entry Component ---
     const DailySalesEntry = () => {
         const [batchData, setBatchData] = useState({});
         const [selectedCustomers, setSelectedCustomers] = useState(new Set());
@@ -700,11 +652,142 @@ const App = () => {
             </div>
         );
     };
+
+    const CustomerList = () => (
+        <div className="p-4 md:p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold text-gray-800">Customers</h1>
+                <button onClick={() => { setEditingCustomer(null); setShowCustomerModal(true); }} className="bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-600 transition-all duration-200 flex items-center gap-2">
+                    <PlusCircleIcon /> Add Customer
+                </button>
+            </div>
+            <div className="bg-white rounded-lg shadow overflow-x-auto">
+                <table className="w-full text-sm text-left text-gray-500">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+                        <tr>
+                            <th scope="col" className="px-6 py-3">Customer Name</th>
+                            <th scope="col" className="px-6 py-3">Shop Name</th>
+                            <th scope="col" className="px-6 py-3">Total Owed</th>
+                            <th scope="col" className="px-6 py-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {customers.map(c => {
+                            const balance = customerBalances[c.id] || 0;
+                            return (
+                                <tr key={c.id} className="bg-white border-b hover:bg-gray-50">
+                                    <td className="px-6 py-4 font-medium text-gray-900">{c.name}</td>
+                                    <td className="px-6 py-4">{c.shopName}</td>
+                                    <td className={`px-6 py-4 font-bold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{balance.toLocaleString('en-IN')}</td>
+                                    <td className="px-6 py-4 flex items-center gap-3">
+                                        <button onClick={() => { setEditingCustomer(c); setShowCustomerModal(true); }} className="text-blue-600 hover:text-blue-800"><EditIcon /></button>
+                                        <button onClick={() => handleDelete('customers', c.id)} className="text-red-600 hover:text-red-800"><TrashIcon /></button>
+                                        {balance > 0 && (
+                                            <button onClick={() => handleGenerateReminder(c, balance)} disabled={geminiLoading} className="text-indigo-600 hover:text-indigo-800 disabled:text-indigo-300"><SparklesIcon /></button>
+                                        )}
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
+    const RecordPayments = () => {
+        const [paymentData, setPaymentData] = useState({});
+        const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+        const [saving, setSaving] = useState(false);
+        const [saveSuccess, setSaveSuccess] = useState(false);
+
+        const customersWithDues = useMemo(() => {
+            return customers.filter(c => customerBalances[c.id] > 0);
+        }, [customers, customerBalances]);
+
+        const handlePaymentChange = (customerId, amount) => {
+            setPaymentData(prev => ({
+                ...prev,
+                [customerId]: amount
+            }));
+        };
+
+        const handleSavePayments = async () => {
+            if (!user) return;
+            setSaving(true);
+            const batch = writeBatch(db);
+            const paymentsCollectionRef = collection(db, 'users', user.uid, 'payments');
+
+            for (const customerId in paymentData) {
+                const amount = Number(paymentData[customerId]);
+                if (amount > 0) {
+                    const newPaymentRef = doc(paymentsCollectionRef);
+                    batch.set(newPaymentRef, {
+                        customerId,
+                        amount,
+                        date,
+                    });
+                }
+            }
+
+            try {
+                await batch.commit();
+                setSaveSuccess(true);
+                setPaymentData({});
+                setTimeout(() => setSaveSuccess(false), 3000);
+            } catch (error) {
+                console.error("Error saving payments:", error);
+            } finally {
+                setSaving(false);
+            }
+        };
+
+        return (
+            <div className="p-4 md:p-6 space-y-6">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-800">Record Payments</h1>
+                    <p className="text-gray-500">Log payments received from customers with outstanding balances.</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow-sm border space-y-4">
+                    <InputField label="Payment Date" type="date" value={date} onChange={e => setDate(e.target.value)} />
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow-sm border">
+                    <h2 className="text-lg font-semibold mb-3">Customers with Dues</h2>
+                    <div className="max-h-[50vh] overflow-y-auto">
+                        {customersWithDues.length > 0 ? customersWithDues.map(customer => (
+                            <div key={customer.id} className="p-3 border-b grid grid-cols-3 gap-4 items-center">
+                                <div className="col-span-1">
+                                    <p className="font-medium text-gray-900">{customer.name}</p>
+                                    <p className="text-sm text-gray-500">Owes: ₹{customerBalances[customer.id].toLocaleString('en-IN')}</p>
+                                </div>
+                                <div className="col-span-2">
+                                    <InputField 
+                                        type="number" 
+                                        placeholder="Amount Paid Today (₹)" 
+                                        value={paymentData[customer.id] || ''}
+                                        onChange={e => handlePaymentChange(customer.id, e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                        )) : (
+                            <p className="text-center text-gray-500 p-4">No customers have outstanding balances.</p>
+                        )}
+                    </div>
+                </div>
+                <div className="mt-6">
+                    <button onClick={handleSavePayments} disabled={saving || Object.keys(paymentData).length === 0} className={`w-full font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200 ${saveSuccess ? 'bg-teal-500 text-white' : 'bg-blue-600 text-white hover:bg-blue-700 disabled:bg-blue-300'}`}>
+                       {saving ? 'Saving...' : (saveSuccess ? 'Payments Saved!' : 'Save All Payments')}
+                    </button>
+                </div>
+            </div>
+        );
+    };
     
     const renderTabContent = () => {
         switch(activeTab) {
             case 'dashboard': return <Dashboard />;
-            case 'dailySales': return <DailySalesEntry />; // New Tab
+            case 'dailySales': return <DailySalesEntry />;
+            case 'recordPayments': return <RecordPayments />;
             case 'purchases': return <PurchaseList />;
             case 'sales': return <SaleList />;
             case 'expenses': return <ExpenseList />;
@@ -723,9 +806,10 @@ const App = () => {
                  <h1 className="text-2xl font-bold text-gray-800 text-center">🥥 Coconut Wholesale Tracker</h1>
             </header>
             <main className="flex-1 overflow-y-auto pb-20">{renderTabContent()}</main>
-            <nav className="bg-white border-t-2 border-gray-200 grid grid-cols-6 gap-1 p-2 fixed bottom-0 w-full z-10">
+            <nav className="bg-white border-t-2 border-gray-200 grid" style={{gridTemplateColumns: 'repeat(7, 1fr)'}}>
                 <TabButton name="dashboard" label="Dashboard" icon={<HomeIcon />} />
                 <TabButton name="dailySales" label="Daily Sales" icon={<ClipboardListIcon />} />
+                <TabButton name="recordPayments" label="Payments" icon={<CreditCardIcon />} />
                 <TabButton name="purchases" label="Purchases" icon={<ArrowDownIcon />} />
                 <TabButton name="sales" label="Sales" icon={<ArrowUpIcon />} />
                 <TabButton name="customers" label="Customers" icon={<UsersIcon />} />
