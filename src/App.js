@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, setLogLevel } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
@@ -91,7 +91,7 @@ const App = () => {
         return () => unsubscribe();
     }, []);
 
-    const dataFetcher = (collectionName, setter) => {
+    const dataFetcher = useCallback((collectionName, setter) => {
         if (!authReady || !user) return;
         const q = collection(db, 'users', user.uid, collectionName);
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -104,7 +104,7 @@ const App = () => {
             console.error(`Error fetching ${collectionName}:`, error);
         });
         return unsubscribe;
-    };
+    }, [authReady, user]);
 
     useEffect(() => {
         const unsubPurchases = dataFetcher('purchases', (items) => setPurchases(items.sort((a,b) => new Date(b.date) - new Date(a.date))));
@@ -118,7 +118,7 @@ const App = () => {
             if (unsubExpenses) unsubExpenses();
             if (unsubCustomers) unsubCustomers();
         };
-    }, [authReady, user]);
+    }, [dataFetcher]);
 
     // --- Gemini API Call ---
     const callGeminiAPI = async (prompt, setLoading, setData) => {
