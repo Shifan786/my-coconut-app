@@ -1,38 +1,31 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, setLogLevel } from 'firebase/firestore';
+import { getFirestore, collection, addDoc, onSnapshot, doc, deleteDoc, updateDoc, setLogLevel, writeBatch } from 'firebase/firestore';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 
 // --- SVG Icons ---
-const HomeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>;
-const ArrowUpIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5l0 14"></path><path d="m18 11-6-6-6 6"></path></svg>;
-const ArrowDownIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5"></path><path d="m6 13 6 6 6-6"></path></svg>;
-const DollarSignIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>;
-const PackageIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16.5 9.4a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0z"></path><path d="M12 14.1c-3.2 0-6 2-6 3.9V20h12v-2c0-1.9-2.8-3.9-6-3.9z"></path><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z"></path></svg>;
-const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
-const EditIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
-const PlusCircleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>;
-const XCircleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>;
-const UsersIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>;
-const CalendarIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 h-5 w-5"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
-const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>;
-const CopyIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
-const CheckCircleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+const HomeIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>;
+const ArrowUpIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5l0 14"></path><path d="m18 11-6-6-6 6"></path></svg>;
+const ArrowDownIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19V5"></path><path d="m6 13 6 6 6-6"></path></svg>;
+const DollarSignIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>;
+const PackageIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16.5 9.4a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0z"></path><path d="M12 14.1c-3.2 0-6 2-6 3.9V20h12v-2c0-1.9-2.8-3.9-6-3.9z"></path><path d="M12 2a10 10 0 1 1 0 20 10 10 0 0 1 0-20z"></path></svg>;
+const TrashIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>;
+const EditIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>;
+const PlusCircleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>;
+const XCircleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>;
+const UsersIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>;
+const CalendarIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2 h-5 w-5"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" x2="16" y1="2" y2="6"/><line x1="8" x2="8" y1="2" y2="6"/><line x1="3" x2="21" y1="10" y2="10"/></svg>;
+const SparklesIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>;
+const CopyIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>;
+const CheckCircleIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>;
+const ClipboardListIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="m9 14 2 2 4-4"/></svg>;
+
 
 // --- Firebase Initialization ---
-// Your web app's Firebase configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyCymXqriOhpXO_3jOxyP_G9TopFuP0FqwA",
-  authDomain: "mycoconutbusiness.firebaseapp.com",
-  projectId: "mycoconutbusiness",
-  storageBucket: "mycoconutbusiness.firebasestorage.app",
-  messagingSenderId: "907044975445",
-  appId: "1:907044975445:web:c7c94fe58bbab8f47275dc",
-  measurementId: "G-JSHV203EZG"
-};
+const firebaseConfig = { apiKey: "AIzaSyCymXqriOhpXO_3jOxyP_G9TopFuP0FqwA", authDomain: "mycoconutbusiness.firebaseapp.com", projectId: "mycoconutbusiness", storageBucket: "mycoconutbusiness.firebasestorage.app", messagingSenderId: "907044975445", appId: "1:907044975445:web:c7c94fe58bbab8f47275dc", measurementId: "G-JSHV203EZG" };
 
 let app, db, auth;
-if (Object.keys(firebaseConfig).length > 6) { // Check for a valid config
+if (Object.keys(firebaseConfig).length > 6) { 
     try {
         app = initializeApp(firebaseConfig);
         db = getFirestore(app);
@@ -82,9 +75,7 @@ const App = () => {
             } else {
                 try {
                     await signInAnonymously(auth);
-                } catch (error) {
-                    console.error("Error signing in:", error);
-                }
+                } catch (error) { console.error("Error signing in:", error); }
             }
             setAuthReady(true);
         });
@@ -100,9 +91,7 @@ const App = () => {
                 items.push({ id: doc.id, ...doc.data() });
             });
             setter(items);
-        }, (error) => {
-            console.error(`Error fetching ${collectionName}:`, error);
-        });
+        }, (error) => { console.error(`Error fetching ${collectionName}:`, error); });
         return unsubscribe;
     }, [authReady, user]);
 
@@ -120,26 +109,21 @@ const App = () => {
         };
     }, [dataFetcher]);
 
-    // --- Gemini API Call ---
     const callGeminiAPI = async (prompt, setLoading, setData) => {
         setLoading(true);
         setData("");
-        const apiKey = "AIzaSyBd4e7Q0q3HPR-jMSXTO6a8kkYBqJQkHV4"; // Canvas will provide the key
+        const apiKey = "AIzaSyBd4e7Q0q3HPR-jMSXTO6a8kkYBqJQkHV4";
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
         const payload = { contents: [{ parts: [{ text: prompt }] }] };
         try {
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
             if (!response.ok) throw new Error(`API call failed with status: ${response.status}`);
             const result = await response.json();
             const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-            setData(text || "Could not get a response from the AI. Please try again.");
+            setData(text || "Could not get a response from the AI.");
         } catch (error) {
             console.error("Gemini API call error:", error);
-            setData("An error occurred while contacting the AI. Check the console for details.");
+            setData("An error occurred while contacting the AI. Check the console.");
         } finally {
             setLoading(false);
         }
@@ -172,7 +156,6 @@ const App = () => {
         });
     };
 
-    // Overall Stats
     const totalPurchases = purchases.reduce((sum, p) => sum + (p.quantity || 0), 0);
     const totalSales = sales.reduce((sum, s) => sum + (s.quantity || 0), 0);
     const inventory = totalPurchases - totalSales;
@@ -180,8 +163,6 @@ const App = () => {
     const totalSaleRevenue = sales.reduce((sum, s) => sum + (s.totalPrice || 0), 0);
     const totalExpenses = expenses.reduce((sum, e) => sum + (e.amount || 0), 0);
     const netProfit = totalSaleRevenue - totalPurchaseCost - totalExpenses;
-
-    // Daily Summary Stats
     const dailyPurchases = purchases.filter(p => p.date === summaryDate).reduce((sum, p) => sum + (p.totalCost || 0), 0);
     const dailySales = sales.filter(s => s.date === summaryDate).reduce((sum, s) => sum + (s.totalPrice || 0), 0);
     const dailyExpenses = expenses.filter(e => e.date === summaryDate).reduce((sum, e) => sum + (e.amount || 0), 0);
@@ -218,8 +199,6 @@ const App = () => {
         }
     };
     
-    // --- Components ---
-
     const Dashboard = () => (
         <div className="p-4 md:p-6 space-y-8">
             <div>
@@ -276,95 +255,172 @@ const App = () => {
         );
     };
 
-    const CrudList = ({ title, data, columns, onAdd, onEdit, onDelete, renderRow }) => (
+    const PurchaseList = () => (
         <div className="p-4 md:p-6">
             <div className="flex justify-between items-center mb-6">
-                <h1 className="text-3xl font-bold text-gray-800">{title}</h1>
-                <button onClick={onAdd} className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600 transition-all duration-200 flex items-center gap-2">
-                    <PlusCircleIcon /> Add {title.slice(0, -1)}
+                <h1 className="text-3xl font-bold text-gray-800">Purchases</h1>
+                <button onClick={() => { setEditingPurchase(null); setShowPurchaseModal(true); }} className="bg-blue-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-blue-600 transition-all duration-200 flex items-center gap-2">
+                    <PlusCircleIcon /> Add Purchase
                 </button>
             </div>
             <div className="bg-white rounded-lg shadow overflow-x-auto">
                  <table className="w-full text-sm text-left text-gray-500">
                     <thead className="text-xs text-gray-700 uppercase bg-gray-100">
                         <tr>
-                            {columns.map(col => <th key={col} scope="col" className="px-6 py-3">{col}</th>)}
+                            <th scope="col" className="px-6 py-3">Date</th>
+                            <th scope="col" className="px-6 py-3">Supplier</th>
+                            <th scope="col" className="px-6 py-3">Quantity</th>
+                            <th scope="col" className="px-6 py-3">Total Cost</th>
+                            <th scope="col" className="px-6 py-3">Vehicle No.</th>
                             <th scope="col" className="px-6 py-3">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        {data.map(item => renderRow(item, onEdit, onDelete))}
+                        {purchases.map(p => (
+                            <tr key={p.id} className="bg-white border-b hover:bg-gray-50">
+                                <td className="px-6 py-4">{new Date(p.date).toLocaleDateString('en-IN')}</td>
+                                <td className="px-6 py-4 font-medium text-gray-900">{p.supplier}</td>
+                                <td className="px-6 py-4">{p.quantity.toLocaleString('en-IN')}</td>
+                                <td className="px-6 py-4">₹{p.totalCost.toLocaleString('en-IN')}</td>
+                                <td className="px-6 py-4">{p.vehicle}</td>
+                                <td className="px-6 py-4 flex items-center gap-2">
+                                    <button onClick={() => { setEditingPurchase(p); setShowPurchaseModal(true); }} className="text-blue-600 hover:text-blue-800"><EditIcon /></button>
+                                    <button onClick={() => handleDelete('purchases', p.id)} className="text-red-600 hover:text-red-800"><TrashIcon /></button>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
+    const SaleList = () => (
+         <div className="p-4 md:p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold text-gray-800">Sales</h1>
+                <button onClick={() => { setEditingSale(null); setShowSaleModal(true); }} className="bg-green-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-green-600 transition-all duration-200 flex items-center gap-2">
+                    <PlusCircleIcon /> Add Sale
+                </button>
+            </div>
+            <div className="bg-white rounded-lg shadow overflow-x-auto">
+                 <table className="w-full text-sm text-left text-gray-500">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+                        <tr>
+                            <th scope="col" className="px-6 py-3">Date</th>
+                            <th scope="col" className="px-6 py-3">Customer</th>
+                            <th scope="col" className="px-6 py-3">Quantity</th>
+                            <th scope="col" className="px-6 py-3">Total Price</th>
+                            <th scope="col" className="px-6 py-3">Amount Paid</th>
+                            <th scope="col" className="px-6 py-3">Balance Due</th>
+                            <th scope="col" className="px-6 py-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {sales.map(s => {
+                            const customer = customers.find(c => c.id === s.customerId);
+                            const balance = (s.totalPrice || 0) - (s.amountPaid || 0);
+                            return (
+                                <tr key={s.id} className="bg-white border-b hover:bg-gray-50">
+                                    <td className="px-6 py-4">{new Date(s.date).toLocaleDateString('en-IN')}</td>
+                                    <td className="px-6 py-4 font-medium text-gray-900">{customer ? customer.name : 'N/A'}</td>
+                                    <td className="px-6 py-4">{s.quantity.toLocaleString('en-IN')}</td>
+                                    <td className="px-6 py-4">₹{s.totalPrice.toLocaleString('en-IN')}</td>
+                                    <td className="px-6 py-4 text-green-600">₹{s.amountPaid.toLocaleString('en-IN')}</td>
+                                    <td className={`px-6 py-4 font-bold ${balance > 0 ? 'text-red-600' : 'text-gray-500'}`}>₹{balance.toLocaleString('en-IN')}</td>
+                                    <td className="px-6 py-4 flex items-center gap-2">
+                                        <button onClick={() => { setEditingSale(s); setShowSaleModal(true); }} className="text-blue-600 hover:text-blue-800"><EditIcon /></button>
+                                        <button onClick={() => handleDelete('sales', s.id)} className="text-red-600 hover:text-red-800"><TrashIcon /></button>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+
+    const ExpenseList = () => (
+        <div className="p-4 md:p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold text-gray-800">Expenses</h1>
+                <button onClick={() => { setEditingExpense(null); setShowExpenseModal(true); }} className="bg-red-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-red-600 transition-all duration-200 flex items-center gap-2">
+                    <PlusCircleIcon /> Add Expense
+                </button>
+            </div>
+            <div className="bg-white rounded-lg shadow overflow-x-auto">
+                <table className="w-full text-sm text-left text-gray-500">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+                        <tr>
+                            <th scope="col" className="px-6 py-3">Date</th>
+                            <th scope="col" className="px-6 py-3">Description</th>
+                            <th scope="col" className="px-6 py-3">Amount</th>
+                            <th scope="col" className="px-6 py-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {expenses.map(e => (
+                             <tr key={e.id} className="bg-white border-b hover:bg-gray-50">
+                                <td className="px-6 py-4">{new Date(e.date).toLocaleDateString('en-IN')}</td>
+                                <td className="px-6 py-4 font-medium text-gray-900">{e.description}</td>
+                                <td className="px-6 py-4">₹{e.amount.toLocaleString('en-IN')}</td>
+                                <td className="px-6 py-4 flex items-center gap-2">
+                                    <button onClick={() => { setEditingExpense(e); setShowExpenseModal(true); }} className="text-blue-600 hover:text-blue-800"><EditIcon /></button>
+                                    <button onClick={() => handleDelete('expenses', e.id)} className="text-red-600 hover:text-red-800"><TrashIcon /></button>
+                                </td>
+                            </tr>
+                        ))}
                     </tbody>
                 </table>
             </div>
         </div>
     );
     
-    const PurchaseList = () => <CrudList title="Purchases" data={purchases} columns={["Date", "Supplier", "Quantity", "Total Cost", "Vehicle No."]} onAdd={() => { setEditingPurchase(null); setShowPurchaseModal(true); }} renderRow={(p, onEdit, onDelete) => (
-        <tr key={p.id} className="bg-white border-b hover:bg-gray-50">
-            <td className="px-6 py-4">{new Date(p.date).toLocaleDateString('en-IN')}</td>
-            <td className="px-6 py-4 font-medium text-gray-900">{p.supplier}</td>
-            <td className="px-6 py-4">{p.quantity.toLocaleString('en-IN')}</td>
-            <td className="px-6 py-4">₹{p.totalCost.toLocaleString('en-IN')}</td>
-            <td className="px-6 py-4">{p.vehicle}</td>
-            <td className="px-6 py-4 flex items-center gap-2">
-                <button onClick={() => { setEditingPurchase(p); setShowPurchaseModal(true); }} className="text-blue-600 hover:text-blue-800"><EditIcon /></button>
-                <button onClick={() => handleDelete('purchases', p.id)} className="text-red-600 hover:text-red-800"><TrashIcon /></button>
-            </td>
-        </tr>
-    )} />;
-
-    const SaleList = () => <CrudList title="Sales" data={sales} columns={["Date", "Customer", "Quantity", "Total Price", "Amount Paid", "Balance Due"]} onAdd={() => { setEditingSale(null); setShowSaleModal(true); }} renderRow={(s) => {
-        const customer = customers.find(c => c.id === s.customerId);
-        const balance = (s.totalPrice || 0) - (s.amountPaid || 0);
-        return (
-            <tr key={s.id} className="bg-white border-b hover:bg-gray-50">
-                <td className="px-6 py-4">{new Date(s.date).toLocaleDateString('en-IN')}</td>
-                <td className="px-6 py-4 font-medium text-gray-900">{customer ? customer.name : 'N/A'}</td>
-                <td className="px-6 py-4">{s.quantity.toLocaleString('en-IN')}</td>
-                <td className="px-6 py-4">₹{s.totalPrice.toLocaleString('en-IN')}</td>
-                <td className="px-6 py-4 text-green-600">₹{s.amountPaid.toLocaleString('en-IN')}</td>
-                <td className={`px-6 py-4 font-bold ${balance > 0 ? 'text-red-600' : 'text-gray-500'}`}>₹{balance.toLocaleString('en-IN')}</td>
-                <td className="px-6 py-4 flex items-center gap-2">
-                    <button onClick={() => { setEditingSale(s); setShowSaleModal(true); }} className="text-blue-600 hover:text-blue-800"><EditIcon /></button>
-                    <button onClick={() => handleDelete('sales', s.id)} className="text-red-600 hover:text-red-800"><TrashIcon /></button>
-                </td>
-            </tr>
-        );
-    }} />;
-
-    const ExpenseList = () => <CrudList title="Expenses" data={expenses} columns={["Date", "Description", "Amount"]} onAdd={() => { setEditingExpense(null); setShowExpenseModal(true); }} renderRow={(e) => (
-         <tr key={e.id} className="bg-white border-b hover:bg-gray-50">
-            <td className="px-6 py-4">{new Date(e.date).toLocaleDateString('en-IN')}</td>
-            <td className="px-6 py-4 font-medium text-gray-900">{e.description}</td>
-            <td className="px-6 py-4">₹{e.amount.toLocaleString('en-IN')}</td>
-            <td className="px-6 py-4 flex items-center gap-2">
-                <button onClick={() => { setEditingExpense(e); setShowExpenseModal(true); }} className="text-blue-600 hover:text-blue-800"><EditIcon /></button>
-                <button onClick={() => handleDelete('expenses', e.id)} className="text-red-600 hover:text-red-800"><TrashIcon /></button>
-            </td>
-        </tr>
-    )} />;
-    
-    const CustomerList = () => <CrudList title="Customers" data={customers} columns={["Customer Name", "Shop Name", "Total Owed"]} onAdd={() => { setEditingCustomer(null); setShowCustomerModal(true); }} renderRow={(c) => {
-        const customerSales = sales.filter(s => s.customerId === c.id);
-        const totalBilled = customerSales.reduce((sum, s) => sum + (s.totalPrice || 0), 0);
-        const totalPaid = customerSales.reduce((sum, s) => sum + (s.amountPaid || 0), 0);
-        const balance = totalBilled - totalPaid;
-        return (
-            <tr key={c.id} className="bg-white border-b hover:bg-gray-50">
-                <td className="px-6 py-4 font-medium text-gray-900">{c.name}</td>
-                <td className="px-6 py-4">{c.shopName}</td>
-                <td className={`px-6 py-4 font-bold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{balance.toLocaleString('en-IN')}</td>
-                <td className="px-6 py-4 flex items-center gap-3">
-                    <button onClick={() => { setEditingCustomer(c); setShowCustomerModal(true); }} className="text-blue-600 hover:text-blue-800"><EditIcon /></button>
-                    <button onClick={() => handleDelete('customers', c.id)} className="text-red-600 hover:text-red-800"><TrashIcon /></button>
-                    {balance > 0 && (
-                        <button onClick={() => handleGenerateReminder(c, balance)} disabled={geminiLoading} className="text-indigo-600 hover:text-indigo-800 disabled:text-indigo-300"><SparklesIcon /></button>
-                    )}
-                </td>
-            </tr>
-        )
-    }} />;
+    const CustomerList = () => (
+        <div className="p-4 md:p-6">
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-3xl font-bold text-gray-800">Customers</h1>
+                <button onClick={() => { setEditingCustomer(null); setShowCustomerModal(true); }} className="bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg shadow-md hover:bg-indigo-600 transition-all duration-200 flex items-center gap-2">
+                    <PlusCircleIcon /> Add Customer
+                </button>
+            </div>
+            <div className="bg-white rounded-lg shadow overflow-x-auto">
+                <table className="w-full text-sm text-left text-gray-500">
+                    <thead className="text-xs text-gray-700 uppercase bg-gray-100">
+                        <tr>
+                            <th scope="col" className="px-6 py-3">Customer Name</th>
+                            <th scope="col" className="px-6 py-3">Shop Name</th>
+                            <th scope="col" className="px-6 py-3">Total Owed</th>
+                            <th scope="col" className="px-6 py-3">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {customers.map(c => {
+                            const customerSales = sales.filter(s => s.customerId === c.id);
+                            const totalBilled = customerSales.reduce((sum, s) => sum + (s.totalPrice || 0), 0);
+                            const totalPaid = customerSales.reduce((sum, s) => sum + (s.amountPaid || 0), 0);
+                            const balance = totalBilled - totalPaid;
+                            return (
+                                <tr key={c.id} className="bg-white border-b hover:bg-gray-50">
+                                    <td className="px-6 py-4 font-medium text-gray-900">{c.name}</td>
+                                    <td className="px-6 py-4">{c.shopName}</td>
+                                    <td className={`px-6 py-4 font-bold ${balance > 0 ? 'text-red-600' : 'text-green-600'}`}>₹{balance.toLocaleString('en-IN')}</td>
+                                    <td className="px-6 py-4 flex items-center gap-3">
+                                        <button onClick={() => { setEditingCustomer(c); setShowCustomerModal(true); }} className="text-blue-600 hover:text-blue-800"><EditIcon /></button>
+                                        <button onClick={() => handleDelete('customers', c.id)} className="text-red-600 hover:text-red-800"><TrashIcon /></button>
+                                        {balance > 0 && (
+                                            <button onClick={() => handleGenerateReminder(c, balance)} disabled={geminiLoading} className="text-indigo-600 hover:text-indigo-800 disabled:text-indigo-300"><SparklesIcon /></button>
+                                        )}
+                                    </td>
+                                </tr>
+                            )
+                        })}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
 
     const Modal = ({ show, onClose, title, children }) => {
         if (!show) return null;
@@ -487,10 +543,168 @@ const App = () => {
             <input {...props} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
         </div>
     );
+
+    // --- NEW: Daily Sales Entry Component ---
+    const DailySalesEntry = () => {
+        const [batchData, setBatchData] = useState({});
+        const [selectedCustomers, setSelectedCustomers] = useState(new Set());
+        const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+        const [defaultQuantity, setDefaultQuantity] = useState('');
+        const [defaultPricePerCoconut, setDefaultPricePerCoconut] = useState('');
+        const [saving, setSaving] = useState(false);
+        const [saveSuccess, setSaveSuccess] = useState(false);
+
+        const handleSelectCustomer = (customerId) => {
+            const newSelection = new Set(selectedCustomers);
+            const newBatchData = { ...batchData };
+
+            if (newSelection.has(customerId)) {
+                newSelection.delete(customerId);
+                delete newBatchData[customerId];
+            } else {
+                newSelection.add(customerId);
+                newBatchData[customerId] = {
+                    quantity: defaultQuantity || '',
+                    pricePerCoconut: defaultPricePerCoconut || '',
+                };
+            }
+            setSelectedCustomers(newSelection);
+            setBatchData(newBatchData);
+        };
+
+        const handleSelectAll = (e) => {
+            const newSelection = new Set();
+            const newBatchData = {};
+            if (e.target.checked) {
+                customers.forEach(c => {
+                    newSelection.add(c.id);
+                    newBatchData[c.id] = { quantity: defaultQuantity || '', pricePerCoconut: defaultPricePerCoconut || '' };
+                });
+            }
+            setSelectedCustomers(newSelection);
+            setBatchData(newBatchData);
+        };
+        
+        const handleBatchDataChange = (customerId, field, value) => {
+            setBatchData(prev => ({
+                ...prev,
+                [customerId]: {
+                    ...prev[customerId],
+                    [field]: value,
+                }
+            }));
+        };
+
+        const applyDefaults = () => {
+            const newBatchData = { ...batchData };
+            selectedCustomers.forEach(customerId => {
+                newBatchData[customerId] = {
+                    quantity: defaultQuantity || newBatchData[customerId].quantity,
+                    pricePerCoconut: defaultPricePerCoconut || newBatchData[customerId].pricePerCoconut,
+                };
+            });
+            setBatchData(newBatchData);
+        };
+
+        const handleSaveAll = async () => {
+            if (!user) return;
+            setSaving(true);
+            const batch = writeBatch(db);
+
+            for (const customerId of selectedCustomers) {
+                const data = batchData[customerId];
+                const quantity = Number(data.quantity);
+                const pricePerCoconut = Number(data.pricePerCoconut);
+
+                if (quantity > 0 && pricePerCoconut > 0) {
+                    const salesCollectionRef = collection(db, 'users', user.uid, 'sales');
+                    const newSaleRef = doc(salesCollectionRef);
+                    batch.set(newSaleRef, {
+                        customerId,
+                        quantity,
+                        totalPrice: quantity * pricePerCoconut,
+                        amountPaid: 0,
+                        date,
+                    });
+                }
+            }
+
+            try {
+                await batch.commit();
+                setSaveSuccess(true);
+                setTimeout(() => setSaveSuccess(false), 3000);
+                setSelectedCustomers(new Set());
+                setBatchData({});
+                setDefaultQuantity('');
+                setDefaultPricePerCoconut('');
+            } catch (error) {
+                console.error("Error saving batch sales:", error);
+            } finally {
+                setSaving(false);
+            }
+        };
+
+        const isAllSelected = selectedCustomers.size > 0 && selectedCustomers.size === customers.length;
+
+        return (
+            <div className="p-4 md:p-6 space-y-6">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-800">Daily Sales Entry</h1>
+                    <p className="text-gray-500">Quickly add sales for multiple customers at once.</p>
+                </div>
+
+                <div className="bg-white p-4 rounded-lg shadow-sm border space-y-4">
+                    <h2 className="text-lg font-semibold">Step 1: Set Defaults (Optional)</h2>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                         <InputField label="Date for all Sales" type="date" value={date} onChange={e => setDate(e.target.value)} />
+                         <InputField label="Default Quantity" type="number" placeholder="e.g. 50" value={defaultQuantity} onChange={e => setDefaultQuantity(e.target.value)} />
+                         <InputField label="Default Price / Coconut (₹)" type="number" placeholder="e.g. 55" value={defaultPricePerCoconut} onChange={e => setDefaultPricePerCoconut(e.target.value)} />
+                    </div>
+                     <button onClick={applyDefaults} className="w-full md:w-auto bg-gray-200 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-300">
+                        Apply Defaults to Selected
+                    </button>
+                </div>
+                
+                <div className="bg-white p-4 rounded-lg shadow-sm border">
+                    <h2 className="text-lg font-semibold mb-3">Step 2: Select Customers & Enter Sales</h2>
+                     <div className="flex items-center p-3 border-b bg-gray-50">
+                        <input type="checkbox" checked={isAllSelected} onChange={handleSelectAll} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                        <label className="ml-3 font-medium text-gray-700">Select All Customers</label>
+                    </div>
+                    <div className="max-h-[40vh] overflow-y-auto">
+                        {customers.map(customer => (
+                             <div key={customer.id} className={`p-3 border-b transition-colors duration-200 ${selectedCustomers.has(customer.id) ? 'bg-blue-50' : ''}`}>
+                                <div className="flex items-center">
+                                    <input type="checkbox" id={`customer-${customer.id}`} checked={selectedCustomers.has(customer.id)} onChange={() => handleSelectCustomer(customer.id)} className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                                    <label htmlFor={`customer-${customer.id}`} className="ml-3 flex-1">
+                                        <p className="font-medium text-gray-900">{customer.name}</p>
+                                        <p className="text-sm text-gray-500">{customer.shopName}</p>
+                                    </label>
+                                </div>
+                                {selectedCustomers.has(customer.id) && (
+                                    <div className="mt-3 grid grid-cols-2 gap-3 pl-8">
+                                        <InputField label="Quantity" type="number" placeholder="Qty" value={batchData[customer.id]?.quantity || ''} onChange={(e) => handleBatchDataChange(customer.id, 'quantity', e.target.value)} />
+                                        <InputField label="Price / Coconut (₹)" type="number" placeholder="Price" value={batchData[customer.id]?.pricePerCoconut || ''} onChange={(e) => handleBatchDataChange(customer.id, 'pricePerCoconut', e.target.value)} />
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <div className="mt-6">
+                    <button onClick={handleSaveAll} disabled={saving || selectedCustomers.size === 0} className={`w-full font-bold py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200 ${saveSuccess ? 'bg-teal-500 text-white' : 'bg-green-600 text-white hover:bg-green-700 disabled:bg-green-300'}`}>
+                       {saving ? 'Saving...' : (saveSuccess ? 'Sales Saved Successfully!' : `Save ${selectedCustomers.size} Sales`)}
+                    </button>
+                </div>
+            </div>
+        );
+    };
     
     const renderTabContent = () => {
         switch(activeTab) {
             case 'dashboard': return <Dashboard />;
+            case 'dailySales': return <DailySalesEntry />; // New Tab
             case 'purchases': return <PurchaseList />;
             case 'sales': return <SaleList />;
             case 'expenses': return <ExpenseList />;
@@ -509,8 +723,9 @@ const App = () => {
                  <h1 className="text-2xl font-bold text-gray-800 text-center">🥥 Coconut Wholesale Tracker</h1>
             </header>
             <main className="flex-1 overflow-y-auto pb-20">{renderTabContent()}</main>
-            <nav className="bg-white border-t-2 border-gray-200 grid grid-cols-5 gap-1 p-2 fixed bottom-0 w-full z-10">
+            <nav className="bg-white border-t-2 border-gray-200 grid grid-cols-6 gap-1 p-2 fixed bottom-0 w-full z-10">
                 <TabButton name="dashboard" label="Dashboard" icon={<HomeIcon />} />
+                <TabButton name="dailySales" label="Daily Sales" icon={<ClipboardListIcon />} />
                 <TabButton name="purchases" label="Purchases" icon={<ArrowDownIcon />} />
                 <TabButton name="sales" label="Sales" icon={<ArrowUpIcon />} />
                 <TabButton name="customers" label="Customers" icon={<UsersIcon />} />
@@ -557,10 +772,7 @@ const App = () => {
     function TabButton({ name, label, icon }) {
         const isActive = activeTab === name;
         return (
-            <button
-                onClick={() => setActiveTab(name)}
-                className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors duration-200 ${isActive ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}
-            >
+            <button onClick={() => setActiveTab(name)} className={`flex flex-col items-center justify-center p-2 rounded-lg transition-colors duration-200 ${isActive ? 'bg-blue-100 text-blue-600' : 'text-gray-500 hover:bg-gray-100'}`}>
                 {icon}
                 <span className="text-xs font-medium mt-1">{label}</span>
             </button>
