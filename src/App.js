@@ -124,7 +124,7 @@ const App = () => {
     const callGeminiAPI = async (prompt, setLoading, setData) => {
         setLoading(true);
         setData("");
-        const apiKey = ""; // Canvas will provide the key
+        const apiKey = "AIzaSyBd4e7Q0q3HPR-jMSXTO6a8kkYBqJQkHV4"; // Canvas will provide the key
         const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
         const payload = { contents: [{ parts: [{ text: prompt }] }] };
         try {
