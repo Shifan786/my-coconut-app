@@ -23,7 +23,7 @@ const CreditCardIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" 
 
 
 // --- Firebase Initialization ---
-const firebaseConfig = { apiKey: "AIzaSyCls1qWa24lPXNXwxHHCE7GR6Y9vjewW1E", authDomain: "mycoconutbusiness.firebaseapp.com", projectId: "mycoconutbusiness", storageBucket: "mycoconutbusiness.firebasestorage.app", messagingSenderId: "907044975445", appId: "1:907044975445:web:c7c94fe58bbab8f47275dc", measurementId: "G-JSHV203EZG" };
+const firebaseConfig = { apiKey: "AIzaSyBwy5qFbs3T27NCUejTkl017lscwuM1URU", authDomain: "mycoconutbusiness.firebaseapp.com", projectId: "mycoconutbusiness", storageBucket: "mycoconutbusiness.firebasestorage.app", messagingSenderId: "907044975445", appId: "1:907044975445:web:c7c94fe58bbab8f47275dc", measurementId: "G-JSHV203EZG" };
 
 let app, db, auth;
 if (Object.keys(firebaseConfig).length > 6) { 
